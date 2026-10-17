@@ -1,7 +1,8 @@
-# Beer Finder — Product & Technical Spec (v0.1, draft)
+# Pint Marten — Product & Technical Spec (v0.2, draft)
 
-> Working name. See [§12 Naming](#12-naming) for candidates. This spec will move to the
-> new repository once a name is chosen.
+> **Pint Marten** (a pun on the pine marten, a tree-climbing member of the weasel family).
+> Repo name: `pint-marten`. This spec moves to that repository once it's created. See
+> [§12 Naming](#12-naming).
 
 ## 1. Summary
 
@@ -35,8 +36,8 @@ security side and boarding time.
 |---|---|---|
 | **1 — Personal MVP (minimum viable product)** | Just the owner | Import, local data, map, travel-time search, walk/drive toggle, "new to me" ranking, NA filter, directions hand-off, backup/restore |
 | **2 — Personal+** | Owner | Airport mode (6 airports), menu photo OCR (optical character recognition), achievements |
-| **3 — Open source release** | Anyone | BYOK (bring your own API key), docs, contributor-maintained airport data, more importers |
-| **4 — Premium (maybe)** | Paying users | Encrypted sync, shared tap-list data, hosted routing — all require hosting and are deferred |
+| **3 — Open source release** | Anyone | BYOK (bring your own API key), docs, contributor-maintained airport data, more importers, CLA bot (§9) |
+| **4 — Premium (maybe; working name "Business of Ferrets")** | Paying users | Encrypted sync, shared tap-list data, hosted routing — all require hosting and are deferred |
 
 ## 3. Core user stories
 
@@ -269,8 +270,19 @@ reward boxes, a sardonic announcer) aren't protectable, but specific expression 
 - No character names, quotes, catchphrases, achievement titles or reward-box names from
   *Dungeon Crawler Carl* or any other work.
 - No "Dungeon Crawler" or "Crawler" in the name or UI.
-- The announcer voice is written fresh, and the reward tiers use our own naming (e.g.,
-  Can → Bottle → Growler → Cask).
+- The announcer voice is written fresh, and tiers and rewards use our own mustelid theme
+  (below).
+- Real-animal names are generic and free to use, but no memes or catchphrases attached to
+  them (e.g., the "honey badger" viral video lines).
+
+**Mustelid theme**
+
+- **Tiers by animal size:** Least Weasel → Stoat → Mink → Marten → Otter → Giant Otter.
+- **Unlock animation:** a "war dance" (the excited sideways hopping ferrets and weasels
+  actually do) by the marten mascot.
+- **Unlock sound:** a "dook" (the chirp ferrets make when happy). Mutable in Settings.
+- **Announcer:** an original, dry, mildly sarcastic marten voice. All lines written
+  in-house.
 
 **Mechanics**
 
@@ -292,6 +304,10 @@ reward boxes, a sardonic announcer) aren't protectable, but specific expression 
 | *Honey, I'm Home* | First mead within 30 min of home |
 | *Style Points* | 25 distinct styles |
 | *Hometown Tourist* | 5 never-visited venues within 15 min of home |
+| *Stout Stoat* | 10 different stouts |
+| *Honey Badger* | 5 different meads |
+| *Ferreted Out* | Visit a venue whose sighting you logged from a menu before going |
+| *Pine Marten* | First drink at a venue in a forest or park (OSM land use) |
 
 **Responsible-drinking rule:** no achievements for volume or speed in a single session
 (e.g., "5 beers in an hour"). Breadth (new places/styles) and NA achievements only.
@@ -390,11 +406,23 @@ current limits). For a single user this is plenty. Results are cached by
 
 ## 9. Licensing
 
-- **Code license: AGPL-3.0 (decided).** Anyone who hosts a modified version must publish
-  their changes, which protects a future Premium offering. As sole copyright holder, the
-  owner can still offer Premium under other terms. If outside contributions are accepted,
-  require a CLA (Contributor License Agreement) or DCO (Developer Certificate of Origin)
-  plus a relicensing clause so that stays possible.
+**Model: open core, following coder/coder** (checked against that repo, 2026-10):
+
+- **Core code: AGPL-3.0** in the root `LICENSE`. Anyone who hosts a modified version must
+  publish their changes.
+- **Premium code (Phase 4, only if built):** lives in a separate `premium/` directory
+  under its own source-available license (`LICENSE.premium`), modeled on Coder's
+  `LICENSE.enterprise`. The code is readable and modifiable, but running it requires a
+  license key, the key check can't be removed or bypassed, and production use requires
+  accepting the project's terms.
+- **Contributions: CLA (Contributor License Agreement), decided.** Required before
+  merging any outside pull request, so contributed code can also ship in Premium.
+  Enforced with the `contributor-assistant/github-action` GitHub Action (the same one
+  coder/coder uses): the PR author comments a fixed sentence to sign, and signatures are
+  stored in a separate repo (e.g., `pint-marten-cla`). Bots like Dependabot are
+  allow-listed. The CLA text gets a lawyer's review before the first outside PR.
+- Until outside contributions are accepted, no CLA is needed; the owner holds all
+  copyright.
 - **Data licenses:** OpenStreetMap and Open Food Facts are ODbL (Open Database License):
   attribution required, and share-alike applies if we redistribute a derived *database*.
   Map attribution is shown in the UI. Curated airport JSON gets its own license
@@ -425,35 +453,40 @@ current limits). For a single user this is plenty. Results are cached by
 | 2 | BeerAdvocate / RateBeer importers | None planned; generic mapper covers them if a file ever appears. |
 | 3 | Airport timing defaults | 20 min dwell / 10 min buffer / 20 min security, all configurable (§4.8). |
 | 4 | Saved home location | Yes; Home, Work and custom places, local only (§4.9). |
-| 5 | Code license | AGPL-3.0 (§9). |
+| 5 | Code license | AGPL-3.0 core; open-core Premium in a separate directory and license, like coder/coder (§9). |
+| 6 | Contribution policy | CLA, enforced by a GitHub Action (§9). |
+| 7 | Product name | **Pint Marten** (§12). |
 
 ### Still open
 
-- Final product name (§12).
-- Contribution policy for Phase 3: CLA vs. DCO.
+- Name clearance: trademark, app store and domain checks (§12).
+- Mascot/logo design.
 
 ## 12. Naming
 
-Criteria: no existing beer-app trademark collision (e.g., Untappd, BeerMenus, TapHunter,
-Taplist), no "Un-" prefix echoing Untappd, short, works as a domain and repo name, and
-hints at *new-to-me* or *exploration*.
+**Decided: Pint Marten.** It's a pun on the pine marten, a tree-climbing member of the
+mustelid (weasel) family. It reads as beer at a glance, is easy to say and spell, and
+gives the app a mascot and an achievement theme (§4.11).
 
-| Candidate | Angle |
-|---|---|
-| **Brewvealer** | Brew + revealer; matches the map-reveal mechanic. Risk: may read as "brew-veal-er"; works well as a wordmark but is easy to misspell when spoken. |
-| **Fog of Ale** | Fog-of-war map reveal; pairs with achievements |
-| **Terra Brewgnita** | "Terra incognita" (unknown land) — exploring the unvisited |
-| **Pintrepid** | Intrepid explorer + pint |
-| **Wanderpint** | Wanderlust + pint |
-| **Hopscout** | Scouting for new beers |
-| **First Pour** | First time having it |
-| **Brewcharted** | Uncharted breweries |
-| **Pour Decisions** | Playful; maybe too common |
-| **Gate Pour** | Airport-flavored; better as the airport-mode feature name |
+- **Repo:** `pint-marten` (AGPL-3.0).
+- **Mascot:** a pine marten. Original artwork only.
+- **Feature names in the same theme:** "Ferret it out" (search button copy), "Gate Pour"
+  (airport mode).
+- **Avoid in names and marketing:** "Badger" (an established UK beer brand, Hall &
+  Woodhouse's Badger Beers), "Wolverine" (Marvel / University of Michigan marks), and any
+  third-party beer app name.
 
-**Status:** a basic web search (2026-10) found no existing product named "Brewvealer" or
-"Fog of Ale". That is **not** a trademark clearance.
+**Clearance status:** a web search (2026-10) found no app, beer or pub named "Pint
+Marten". Nearby but distinct names already in use: PintPath, Pint Please, Real Ale
+Finder, TapHunter. A web search is **not** a trademark clearance.
 
-**Next step:** check shortlisted names against the USPTO trademark search (TESS's
-successor), the App Store and Google Play, GitHub, and `.app`/`.com` domain availability
-before creating the repo.
+**Before creating the repo:**
+
+1. USPTO (US Patent and Trademark Office) trademark search for "Pint Marten" and close
+   variants, in the software class (009) and the app/online-services classes (042, 043).
+2. App Store and Google Play search.
+3. Domains: `pintmarten.app`, `pintmarten.com`.
+4. GitHub username/org availability, if the repo should live under its own org.
+
+**Other candidates considered:** Ferret Out, Pint Ferret, Hop Weasel, Dook, Brewvealer,
+Fog of Ale, Terra Brewgnita, Pintrepid, Wanderpint, Hopscout, First Pour, Brewcharted.
