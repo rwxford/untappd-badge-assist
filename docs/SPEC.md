@@ -8,8 +8,12 @@
 A local-first PWA (Progressive Web App — a website that installs to the home screen,
 works offline, and can use device GPS) that answers one question:
 
-**"What beers I haven't had, and places I haven't been, can I reach from here in the
-time I have?"**
+**"What beers, ciders and meads I haven't had, and places I haven't been, can I reach
+from here in the time I have?"**
+
+Scope covers **beer, cider and mead** (alcoholic and non-alcoholic). Wine and spirits are
+out of scope. In this spec, "beer" in UI copy means any of the three unless stated
+otherwise.
 
 The user seeds the app with their drinking history, imported from beer-tracking apps or a
 spreadsheet. The app then finds nearby venues within a walking or driving time limit,
@@ -60,17 +64,15 @@ security side and boarding time.
 | Source | Format | Status / notes |
 |---|---|---|
 | Untappd | CSV or JSON export (Insiders feature) | Phase 1. User-initiated export file only — no API use. Expected columns include `beer_name`, `brewery_name`, `beer_type`, `beer_abv`, `venue_name`, `venue_lat`, `venue_lng`, `created_at`, `rating_score`. **Verify against a real export.** |
-| BeerAdvocate | Unknown | **Need a sample file.** It may not offer a self-service export; fall back to the generic mapper. |
-| RateBeer | Unknown | **Need a sample file.** Same fallback. |
-| Vivino | CSV | It's a wine app, so it's only useful if wine/cider is in scope. Deprioritized; see open questions. |
-| Generic spreadsheet | CSV, TSV, XLSX | Phase 1. Column-mapping wizard (below). |
+| Generic spreadsheet | CSV, TSV, XLSX | Phase 1. Column-mapping wizard (below). Also covers any other app's export (e.g., BeerAdvocate, RateBeer) via saved mapping presets — no dedicated importers planned. |
 
 **Generic mapper wizard**
 
 1. User drops a file → parsed in a Web Worker (a background thread, so the UI doesn't
    freeze on large files).
 2. App previews the first 20 rows and auto-guesses columns by header name
-   (`beer`, `brewery`, `style`, `abv`, `venue`, `lat`, `lng`/`lon`, `date`, `rating`).
+   (`beer`, `brewery`, `style`, `abv`, `venue`, `lat`, `lng`/`lon`, `date`, `rating`,
+   `category`). If no category column exists, category is inferred from style (§4.2).
 3. User confirms/adjusts mapping; only `beer` + `brewery` are required.
 4. Mapping is saved as a named preset for re-imports.
 
@@ -91,15 +93,21 @@ security side and boarding time.
 All data lives on-device in IndexedDB (the browser's built-in database).
 
 ```
-Beer        { id, breweryId, name, style, abv, isNA, sourceIds[] }
-Brewery     { id, name, city, region, country, osmId? }
+Drink       { id, producerId, name, category: beer|cider|mead, style, abv, isNA, sourceIds[] }
+Producer    { id, name, kind: brewery|cidery|meadery|mixed, city, region, country, osmId? }
 Venue       { id, osmId?, airportCode?, name, kind, lat, lng, tags, lastFetched }
-Consumption { id, beerId, venueId?, date, rating?, source, sourceRowHash }
+Consumption { id, drinkId, venueId?, date, rating?, source, sourceRowHash }
 Visit       { venueId, firstDate, count }               // derived
-Sighting    { id, beerId, venueId, seenAt, source: manual|ocr|paste }  // "it's on tap here"
+Sighting    { id, drinkId, venueId, seenAt, source: manual|ocr|paste }  // "it's on tap here"
 ImportJob   { id, source, fileName, importedAt, rowCount, mappingPreset }
-Settings    { mode: walk|drive, maxMinutes, mapsApp, naFilter, routingKey?, ... }
+Place       { id, label: home|work|custom, name, lat, lng }      // saved locations, local only
+Settings    { mode: walk|drive, maxMinutes, mapsApp, naFilter, categories[], routingKey?,
+              airport: { dwellMin, bufferMin, securityMin }, ... }
 ```
+
+**Category inference:** style containing "cider"/"perry" → cider; "mead"/"melomel"/
+"cyser"/"metheglin"/"braggot" → mead (cyser and braggot are hybrids, so they are tagged mead
+with the hybrid noted in style); everything else → beer. The user can correct any record.
 
 ### 4.3 Location & travel-time search
 
@@ -116,8 +124,11 @@ Settings    { mode: walk|drive, maxMinutes, mapsApp, naFilter, routingKey?, ... 
   3. Keep venues inside the polygon (point-in-polygon test, done on-device).
   4. For the top ~25 candidates, request a **travel-time matrix** (exact minutes from
      the user to each venue) for accurate sorting and display.
+- **Category filter:** Beer · Cider · Mead chips (multi-select, all on by default).
 - **Venue types** (OpenStreetMap tags): `amenity=bar|pub|biergarten`,
-  `craft=brewery`, `microbrewery=yes`, `shop=alcohol|beverages`, and optionally
+  `craft=brewery`, `microbrewery=yes`, `craft=cider` (cideries), meaderies (OSM tagging
+  is inconsistent — often `craft=winery` or `craft=brewery` plus a name match; verify
+  during M3), `shop=alcohol|beverages`, and optionally
   `shop=supermarket|convenience` (relevant for the NA filter — see §4.5).
 
 ### 4.4 "New to me" ranking
@@ -128,11 +139,12 @@ Each venue gets a novelty score:
 |---|---|---|
 | Venue never visited | High | Imports + manual visits |
 | Known beers here I haven't had (count) | High | Sightings |
-| Brewery/taproom whose beers I've barely had | Medium | Imports: (# beers from this brewery I've had) vs. typical lineup size |
+| Brewery/cidery/meadery whose drinks I've barely had | Medium | Imports: (# drinks from this producer I've had) vs. typical lineup size |
 | Venue kind (taproom > bottle shop > bar > grocery) | Low | OSM tags |
 | Travel time | Penalty | Matrix |
 
-Filters: **Unvisited only**, **Has known new beers**, **Breweries only**, **Open now**
+Filters: **Unvisited only**, **Has known new beers**, **Producers only** (breweries,
+cideries, meaderies), **Open now**
 (OSM `opening_hours` where present; shown as "unknown" otherwise).
 
 This works on day one without any tap-list data: an unvisited brewery taproom is almost
@@ -141,10 +153,11 @@ accumulate (§4.6).
 
 ### 4.5 Non-alcoholic (NA) filter
 
-- Three states: **All** · **NA only** · **Hide NA**.
-- A beer is NA if any of the following is true: ABV (alcohol by volume) ≤ 0.5% (the US
+- Three states: **All** · **NA only** · **Hide NA**. Applies across beer, cider and mead
+  (NA cider is common; NA mead is rare but handled the same way).
+- A drink is NA if any of the following is true: ABV (alcohol by volume) ≤ 0.5% (the US
   legal threshold for "non-alcoholic"), its style contains "non-alcoholic" / "NA" /
-  "alcohol-free", or its brewery is on a curated list of NA-only breweries.
+  "alcohol-free", or its producer is on a curated list of NA-only producers.
 - "NA only" mode also widens venue types to include supermarkets and convenience stores,
   since that's where most packaged NA beer is sold.
 - Optional enrichment: Open Food Facts (an open product database with barcodes and ABV)
@@ -189,11 +202,21 @@ The current mode toggle carries through to the maps app.
 
 **Logic**
 
-- Time budget = boarding time − now − safety buffer (default 10 min, adjustable).
+- Time budget = boarding time − now − safety buffer.
 - A venue is reachable if
-  `walk(here → venue) + dwell (default 20 min) + walk(venue → departure gate) ≤ budget`.
+  `walk(here → venue) + dwell + walk(venue → departure gate) ≤ budget`.
+- **All three timing values are configurable**, with global defaults in Settings and a
+  per-trip override on the airport screen (e.g., "quick one: 10 min dwell"):
+
+  | Setting | Default | Range |
+  |---|---|---|
+  | Dwell time at venue | 20 min | 5–90 min |
+  | Boarding safety buffer | 10 min | 0–45 min |
+  | Security estimate (landside → airside) | 20 min | 5–90 min |
+
+  Per-airport security overrides are also allowed (e.g., ATL longer than CLT).
 - Landside users see landside venues, plus airside venues only if the budget can absorb
-  a security estimate (user-entered; default 20 min; no live wait-time feed in Phase 2).
+  the security estimate above (no live wait-time feed in Phase 2).
 - Airside users never see landside venues, since they'd have to clear security again.
 - Ranking reuses §4.4 (new-to-me first), then by slack time remaining.
 
@@ -218,14 +241,24 @@ Venue     { id, name, concourse, nearestNodeId, side, hours?, servesBeer, hasNA?
 - In-airport directions: show a text route ("Walk to Plane Train → Concourse B → toward
   B12, ~9 min"). Apple/Google Maps indoor routing is unreliable, so there's no hand-off.
 
-### 4.9 Backup & restore
+### 4.9 Saved places
+
+- The user can save **Home**, **Work**, and any number of custom places. They're stored
+  locally only and included in backups.
+- Any saved place can be used as the search origin instead of current GPS ("what's new
+  within 20 min of home"), which also avoids a location prompt.
+- Powers home-relative features: "Unvisited near home" filter and home-based
+  achievements (§4.11).
+- Saved places are never sent anywhere except as a routing origin (rounded, per §6).
+
+### 4.10 Backup & restore
 
 - **Export:** a single JSON file of all data plus settings, with a schema version.
 - **Restore:** merge or replace.
 - Reminder banner if no backup in 30 days (local-only data can be lost if the browser is
   cleared).
 
-### 4.10 Achievements (Phase 2 — concept)
+### 4.11 Achievements (Phase 2 — concept)
 
 An original, game-style "achievement unlocked" system inspired by the LitRPG genre (a
 fiction genre with video-game-like stats and announcements), with its own voice and names.
@@ -241,8 +274,8 @@ reward boxes, a sardonic announcer) aren't protectable, but specific expression 
 
 **Mechanics**
 
-- Rules engine runs locally on events: new beer, new venue, new style, new brewery, NA
-  beer, airport visit, import completed.
+- Rules engine runs locally on events: new drink, new venue, new style, new producer,
+  new category (first cider/mead), NA drink, airport visit, import completed.
 - Full-screen "NEW ACHIEVEMENT" card with an announcer one-liner and a tier reward.
   Rewards are cosmetic: map themes, title flair, fog-of-war reveal effects.
 - Retroactive: on first enable, replays imported history to award earned achievements.
@@ -254,7 +287,9 @@ reward boxes, a sardonic announcer) aren't protectable, but specific expression 
 | *Terra Brewgnita* | First beer in a city you've never had one in |
 | *Terminal Velocity* | A beer airside at 3 different airports |
 | *Gate Expectations* | Visited an airport venue and reached the gate with ≥10 min to spare |
-| *Designated Legend* | 10 different NA beers |
+| *Designated Legend* | 10 different NA drinks |
+| *Orchard Run* | First cider at 5 different cideries |
+| *Honey, I'm Home* | First mead within 30 min of home |
 | *Style Points* | 25 distinct styles |
 | *Hometown Tourist* | 5 never-visited venues within 15 min of home |
 
@@ -353,12 +388,13 @@ current limits). For a single user this is plenty. Results are cached by
    matches.
 6. **Settings:** routing key, defaults, backup/restore, data reset.
 
-## 9. Licensing considerations (to decide before Phase 3)
+## 9. Licensing
 
-- **Code license:** MIT (maximum adoption) vs. AGPL-3.0 (anyone hosting a modified
-  version must publish their changes, which protects a future Premium offering).
-  Recommendation: **AGPL-3.0** if Premium is a real possibility; it's easier to relax
-  later than to tighten.
+- **Code license: AGPL-3.0 (decided).** Anyone who hosts a modified version must publish
+  their changes, which protects a future Premium offering. As sole copyright holder, the
+  owner can still offer Premium under other terms. If outside contributions are accepted,
+  require a CLA (Contributor License Agreement) or DCO (Developer Certificate of Origin)
+  plus a relicensing clause so that stays possible.
 - **Data licenses:** OpenStreetMap and Open Food Facts are ODbL (Open Database License):
   attribution required, and share-alike applies if we redistribute a derived *database*.
   Map attribution is shown in the UI. Curated airport JSON gets its own license
@@ -381,17 +417,20 @@ current limits). For a single user this is plenty. Results are cached by
 | M6 | Sightings | Paste/type menu parser, freshness |
 | M7 | Hand-off & backup | Apple/Google deep links; export/restore; persistence prompt |
 
-## 11. Open questions
+## 11. Decisions log
 
-1. **Wine/cider/spirits:** beer only, or also cider/mead? (Decides whether Vivino import
-   matters.)
-2. **BeerAdvocate / RateBeer:** do you have export files from either? Sample files are
-   needed to build those importers.
-3. **Dwell time and buffers** in airport mode: are 20 min dwell / 10 min buffer / 20 min
-   security right for you?
-4. **Home base:** should "Hometown Tourist"-style features use a saved home location
-   (stored locally)?
-5. **Code license:** AGPL-3.0 vs. MIT (§9).
+| # | Question | Decision |
+|---|---|---|
+| 1 | Drink scope | Beer, cider and mead; no wine/spirits. Vivino import dropped. |
+| 2 | BeerAdvocate / RateBeer importers | None planned; generic mapper covers them if a file ever appears. |
+| 3 | Airport timing defaults | 20 min dwell / 10 min buffer / 20 min security, all configurable (§4.8). |
+| 4 | Saved home location | Yes; Home, Work and custom places, local only (§4.9). |
+| 5 | Code license | AGPL-3.0 (§9). |
+
+### Still open
+
+- Final product name (§12).
+- Contribution policy for Phase 3: CLA vs. DCO.
 
 ## 12. Naming
 
@@ -401,6 +440,7 @@ hints at *new-to-me* or *exploration*.
 
 | Candidate | Angle |
 |---|---|
+| **Brewvealer** | Brew + revealer; matches the map-reveal mechanic. Risk: may read as "brew-veal-er"; works well as a wordmark but is easy to misspell when spoken. |
 | **Fog of Ale** | Fog-of-war map reveal; pairs with achievements |
 | **Terra Brewgnita** | "Terra incognita" (unknown land) — exploring the unvisited |
 | **Pintrepid** | Intrepid explorer + pint |
@@ -410,6 +450,9 @@ hints at *new-to-me* or *exploration*.
 | **Brewcharted** | Uncharted breweries |
 | **Pour Decisions** | Playful; maybe too common |
 | **Gate Pour** | Airport-flavored; better as the airport-mode feature name |
+
+**Status:** a basic web search (2026-10) found no existing product named "Brewvealer" or
+"Fog of Ale". That is **not** a trademark clearance.
 
 **Next step:** check shortlisted names against the USPTO trademark search (TESS's
 successor), the App Store and Google Play, GitHub, and `.app`/`.com` domain availability
